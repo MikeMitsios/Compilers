@@ -1,0 +1,116 @@
+/* Simple +/-/* expression language; parser evaluates constant expressions on the fly*/
+/**
+ *  Package and Import Specifications
+ */
+import java_cup.runtime.*;
+import java.io.*;
+/**
+ *  Usercode Components
+ */
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    Parser(Scanner s){ this.s=s; }
+:}
+
+/* define how to connect to the scanner! */
+scan with {: return s.next_token(); :};
+
+/**
+ *  Symbol Lists
+ */
+
+/* Terminals (tokens returned by the scanner). */
+terminal            PLUS, LPAREN, RPAREN,IF,ELSE,END,PREFIX,SUFFIX,REVERSE,COMMA,PBEGIN;
+terminal String     STRING_LITERAL,IDENT;        // our scanner provides numbers as strings
+
+/*  Non terminals */
+//non terminal            expr_list;
+non terminal            mpla,thebegin;
+//non terminal Integer 	expr;      // used to store evaluated subexpressions
+non terminal String 	str,strs,idents,if_state,cond,call,declare,state,declar_list,call_list,help1,help2,total_id,total_str;
+/**
+ *  Precedence Declarations
+ */
+
+
+precedence left IDENT;
+precedence left STRING_LITERAL;
+precedence left COMMA;
+precedence left LPAREN;
+precedence left END;
+precedence left RPAREN;
+precedence left PBEGIN;
+precedence left PLUS;
+precedence left REVERSE;
+
+
+/**
+ *  The Grammar Rules
+ */
+thebegin ::=mpla state:s {:BufferedWriter out = new BufferedWriter(new FileWriter("Main2.java",true));out.write(s+"}");out.close();
+ System.out.println("javac Main2.java\njava Main2");:}	//the print to show that the product  starts to execute
+;
+
+mpla ::=		{: File file = new File("Main2.java");FileWriter writer = new FileWriter(file);writer.write("public class Main2 {\n");writer.close(); :}	//first java calling for filr creation
+;
+
+state ::= declare:d2 declar_list:d  		{: RESULT="public static String "+d2+"\n"+d;:}		//the whole list that conteins the declarations first and then the calls
+
+;
+
+
+declar_list ::=declare:d2 declar_list:d1	{:RESULT="public static String "+d2+"\n"+d1;:}				//there must be at least onee declaration and then the list after can be empty
+			  | call_list:d1					{:RESULT="public static void main(String[] args) {\n"+d1+"}\n"; :}
+;
+
+
+declare ::= help1:h  PBEGIN str:s2 END 	{: RESULT=h+")"+"{\nreturn "+s2+";}";:}					//the whole declare type
+;
+
+help1::=IDENT:identifier LPAREN total_id:ids 		{:if(ids!=null){RESULT=identifier+"("+ids;}else{RESULT=identifier+"(";}:}	//the declaration until and withought the "){" element
+;
+
+call_list ::=  call:c2 call_list:c1			{:if(c1!=null){RESULT="System.out.println("+c2+");\n"+c1;}else{RESULT="System.out.println("+c2+");\n";} :}		//lists of calls
+			  |								{::}
+;
+
+call ::=help2:h RPAREN			{: RESULT=h+")";:}				//the whole call type
+;
+
+help2::=IDENT:identifier LPAREN total_str:s 			{:if(s!=null){RESULT=identifier+"("+s;}else{RESULT=identifier+"(";}:}		//the part of a call withought (
+;
+
+total_id ::=idents:ids 					{:RESULT = ids;:}					//desision of emptu arguments type ident or many
+			|							{:RESULT = null;:}
+;
+
+total_str ::=strs:s 					{:RESULT = s;:}						//desision of emptu arguments type str or many
+			|							{:RESULT = null;:}
+;
+
+idents ::= IDENT:id1 COMMA idents:id2	{: RESULT = "String "+id1+","+id2;:}	//many idents seperated with commas
+		 | IDENT:id2					{: RESULT = "String "+id2;:}
+;
+
+strs ::= str:s1 COMMA strs:s2			{: RESULT = s1+","+s2;:}			//many str seperated with commas
+	   | str:s2							{: RESULT = s2;:}
+
+;
+
+
+if_state ::= IF LPAREN cond:c RPAREN str:s1 ELSE str:s2  	{:RESULT="(("+c+")"+" ?"+s1+" :"+s2+")";:}			//form of if is standar
+;
+
+
+cond ::= str:s1 PREFIX str:s2			{: RESULT=s2+".startsWith("+s1+")";:}		//2 types of conditional preffix and suffix
+	   //| str:s1 SUFFIX str:s2			{: RESULT=s2+".endsWith("+s2+")";:}
+;
+
+str ::=	str:s1 PLUS str:s2	{: RESULT=s1+"+"+s2;:}				//every possble type of string is here
+	  | STRING_LITERAL:s 	{: RESULT="\""+s+"\"";:}
+	  | IDENT:id 		 	{: RESULT=id;:}
+	  | if_state:i 			{: RESULT=i;:}
+	  | call:c 				{: RESULT=c;:}
+    | REVERSE str:s1  {:RESULT="new StringBuilder("+s1+").reverse().toString()";:}          //reverse the string and return it
+;
